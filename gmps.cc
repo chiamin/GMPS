@@ -48,11 +48,12 @@ int main(int argc, char* argv[])
     auto ly         = input.getInt("Ly");
     auto cutoff     = input.getReal("Cutoff");
     auto maxdim     = input.getInt("MaxDim");
+    auto outfile    = input.getString("MPSFileName");
 
     auto phi = read_determinants (det_file, lx*ly);
 
     auto psi = GaussianMPS (phi, phi, block_size, occ_crit, {"Cutoff",cutoff,"MaxDim",maxdim});
     cout << "max bond dim = " << maxLinkDim(psi) << endl;
-
+    writeToFile (outfile, psi);
     return 0;
 }
