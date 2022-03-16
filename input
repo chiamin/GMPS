@@ -1,0 +1,10 @@
+basic
+{
+    Lx = 20
+    Ly = 4
+    det_file = phiT0.dat
+    block_size = 10
+    occ_crit = 0.01
+    Cutoff = 1e-4
+    MaxDim = 5000
+}
