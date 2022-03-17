@@ -75,7 +75,7 @@ int get_approx_occ (Real occ, Real crit)
         cout << "Cannot find an occupied or empty orbital" << endl;
         cout << "Occupation number = " << occ << endl;
         cout << "Critiria = " << crit << endl;
-        throw;
+        throw std::underflow_error("block too small");;
     }
     if (occ_crit < emp_crit)   // occupied
         return 1;
