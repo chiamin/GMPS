@@ -2,6 +2,7 @@
 #define __GAUSSIANMPS_H_CMC__
 #include "itensor/all.h"
 #include "IUtility.h"
+#include "GeneralUtility.h"
 using namespace itensor;
 using namespace std;
 
@@ -11,13 +12,21 @@ using MatT = CMatrix;
 CVector inline
 operator*(CMatrixRefc const& A,
           CVectorRefc const& b)
-    {
+{
     CVector res(nrows(A));
     mult(A,b,makeRef(res));
     return res;
-    }
+}
 
-#define SHOWTYPE(x) decltype(x)::nothing
+template <typename MatT>
+void check_unitary (const MatT& M)
+{
+    auto v1 = column(M,0);
+    auto v2 = column(M,1);
+    mycheck (abs(norm(v1)-1) < 1e-12, "norm != 1");
+    mycheck (abs(norm(v2)-1) < 1e-12, "norm != 1");
+    mycheck (abs(v1*v2) < 1e-12, "not ortho");
+}
 
 // Get a series of 2x2 matrices R, such that
 // [     ] [       ]    [ x ]
@@ -44,8 +53,8 @@ vector<auto> Get_rot_mats (VecType orbit_)
     for(int j = orbit.size()-2; j >= 0; j--)
     {
         MatT rot (2,2);
-        rot(0,0) = orbit(j);
-        rot(0,1) = orbit(j+1);
+        rot(0,0) = iut::conj(orbit(j));
+        rot(0,1) = iut::conj(orbit(j+1));
         rot(1,0) = -orbit(j+1);
         rot(1,1) = orbit(j);
         auto sub = subVector (orbit,j,j+2);
@@ -53,6 +62,7 @@ vector<auto> Get_rot_mats (VecType orbit_)
         subVector (orbit,j,j+2) &= rot * sub;
         rots.push_back (rot);
     }
+
     return rots;
 }
 
@@ -84,7 +94,7 @@ tuple<int,auto> get_approx_occ (const Vector& occ, const MatT& U, Real crit)
         cout << "Cannot find an occupied or empty orbital" << endl;
         cout << "Occupation number = " << occ(0) << "  " << occ(N-1) << endl;
         cout << "Critiria = " << crit << endl;
-        throw;
+        throw std::underflow_error("block too small");
     }
     int occ_i, orb_i;
     if (occ_crit < emp_crit)   // occupied
@@ -97,7 +107,9 @@ tuple<int,auto> get_approx_occ (const Vector& occ, const MatT& U, Real crit)
         occ_i = 0;
         orb_i = N-1;
     }
-    return make_tuple(occ_i, column(U,orb_i));
+    auto tmp = U(0,0);
+    typedef typename std::conditional<is_same_v<decltype(tmp),double>, Vector, CVector>::type VecT;
+    return make_tuple(occ_i, VecT(column(U,orb_i)));
 }
 
 template <typename MatT>
@@ -225,10 +237,48 @@ void Apply_gates (MPS& psi, const vector<int>& pos, const vector<MatT>& rots_up,
 }
 
 template <typename MatT>
-void apply_one_body_rot (MatT& lambda, const MatT& rot, int j)
+void apply_one_body_rot_mat (const vector<MatT>& rots, const vector<int>& pos, MatT& lambda)
 {
-    columns(lambda,j-1,j+1) &= columns(lambda,j-1,j+1) * transpose(rot);
-    rows(lambda,j-1,j+1) &= rot * MatT(rows(lambda,j-1,j+1));
+    for(int i = 0; i < pos.size(); i++)
+    {
+        int j = pos.at(i);
+        auto const& rot = rots.at(i);
+        columns(lambda,j-1,j+1) &= columns(lambda,j-1,j+1) * conj(transpose(rot));
+        rows(lambda,j-1,j+1) &= rot * MatT(rows(lambda,j-1,j+1));
+    }
+}
+
+template <typename MatT>
+void apply_one_body_rot_mat_left (const vector<MatT>& rots, const vector<int>& pos, MatT& lambda)
+{
+    for(int i = 0; i < pos.size(); i++)
+    {
+        int j = pos.at(i);
+        auto const& rot = rots.at(i);
+        rows(lambda,j-1,j+1) &= rot * MatT(rows(lambda,j-1,j+1));
+    }
+}
+
+template <typename MatT>
+void apply_one_body_rot_mat_right (const vector<MatT>& rots, const vector<int>& pos, MatT& lambda)
+{
+    for(int i = 0; i < pos.size(); i++)
+    {
+        int j = pos.at(i);
+        auto const& rot = rots.at(i);
+        columns(lambda,j-1,j+1) &= columns(lambda,j-1,j+1) * conj(transpose(rot));
+    }
+}
+
+template <typename VecT>
+void apply_one_body_rot_vec (const vector<MatT>& rots, const vector<int>& pos, VecT& v)
+{
+    for(int i = 0; i < pos.size(); i++)
+    {
+        int j = pos.at(i);
+        auto const& rot = rots.at(i);
+        subVector(v,j-1,j+1) &= rot * subVector(v,j-1,j+1);
+    }
 }
 
 string get_state_str (int occ_up, int occ_dn)
@@ -246,28 +296,84 @@ string get_state_str (int occ_up, int occ_dn)
 }
 
 template <typename MatT>
+void check_hermitian (const MatT& M)
+{
+    auto D = conj(transpose(M)) - M;
+    Real nn = norm(D);
+    mycheck (nn < 1e-12, "check hermitian failed");
+}
+
+template <typename MatT>
+void check_denmat (int Np, const MatT& lambda)
+{
+    check_hermitian (lambda);
+    MatT U;
+    Vector occs;
+    diagHermitian (lambda, U, occs);
+
+    Real n = 0.,
+         nn = 0.;
+    for(int i = 0; i < occs.size(); i++)
+    {
+        mycheck (occs(i) > 0. or abs(occs(i)) < 1e-12, "negative occupasion");
+        n += occs(i);
+        if constexpr (is_same_v<decltype(lambda(i,i)),Real>)
+            nn += lambda(i,i);
+        else
+            nn += lambda(i,i).real();
+    }
+    mycheck (abs(n-Np) < 1e-2, "particle number check failed");
+    mycheck (abs(n-nn) < 1e-2, "particle number check failed2");
+}
+
+void update_Np (const string& st, int& Np_up, int& Np_dn)
+{
+    if (st == "UpDn")
+    {
+        Np_up++;
+        Np_dn++;
+    }
+    else if (st == "Up")
+    {
+        Np_up++;
+    }
+    else if (st == "Dn")
+    {
+        Np_dn++;
+    }
+}
+
+template <typename MatT>
 MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real crit, Args const& args=Args::global())
 {
     int N = nrows (phi_up);
     Electron sites (N);
 
     // Get  one-body density matrix
-    MatT lambda_up = phi_up * transpose(phi_up);
-    MatT lambda_dn = phi_dn * transpose(phi_dn);
+    MatT lambda_up = phi_up * conj(transpose(phi_up));
+    MatT lambda_dn = phi_dn * conj(transpose(phi_dn));
+
+    int Np_up = ncols (phi_up);
+    int Np_dn = ncols (phi_dn);
+    //check_denmat (Np_up, lambda_up);
+    //check_denmat (Np_dn, lambda_dn);
 
     //Electron sites (N);
     InitState init (sites);
 
     vector<MatT> rot_up_all, rot_dn_all;
     vector<int> pos_all;
+    int Np_up_check=0, Np_dn_check=0;
     for(int i1 = 1; i1 < N; i1++)
     {
         // Get the sub-matrix of lambda
-        int i2 = i1 + block_size;
+        int i2 = i1 + block_size - 1;
         if (i2 > N)
             i2 = N;
         auto sub_lambda_up = MatT (subMatrix (lambda_up, i1-1, i2, i1-1, i2));
         auto sub_lambda_dn = MatT (subMatrix (lambda_dn, i1-1, i2, i1-1, i2));
+        //check_denmat (Np_up-Np_up_check, MatT (subMatrix (lambda_up, i1-1, N, i1-1, N)));
+        //check_denmat (Np_dn-Np_dn_check, MatT (subMatrix (lambda_dn, i1-1, N, i1-1, N)));
 
         // Diagonalize the sub-matrix
         //MatT u_up, u_dn;
@@ -283,6 +389,7 @@ MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real cr
         // Set the product state at site i1
         auto st = get_state_str (occ_up, occ_dn);
         init.set (i1, st);
+        update_Np (st, Np_up_check, Np_dn_check);
 
         // Get the angles to rotate the basis
         auto rots_up = Get_rot_mats (orb_up);
@@ -296,16 +403,14 @@ MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real cr
         }
 
         // Rotate lambda
-        for(int i = 0; i < pos.size(); i++)
-        {
-            apply_one_body_rot (lambda_up, rots_up.at(i), pos.at(i));
-            apply_one_body_rot (lambda_dn, rots_dn.at(i), pos.at(i));
-        }
+        apply_one_body_rot_mat (rots_up, pos, lambda_up);
+        apply_one_body_rot_mat (rots_dn, pos, lambda_dn);
 
         pos_all.insert (pos_all.end(), pos.begin(), pos.end());
         rot_up_all.insert (rot_up_all.end(), rots_up.begin(), rots_up.end());
         rot_dn_all.insert (rot_dn_all.end(), rots_dn.begin(), rots_dn.end());
     }
+    // Last site
     Real occ_up, occ_dn;
     auto tmp = lambda_up(N-1,N-1);
     if constexpr (is_same_v<decltype(tmp),Real>)
@@ -322,6 +427,12 @@ MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real cr
     int n_dn = get_approx_occ (occ_dn, crit);
     auto st = get_state_str (n_up, n_dn);
     init.set (N, st);
+    update_Np (st, Np_up_check, Np_dn_check);
+    if (Np_up_check != Np_up or Np_dn_check != Np_dn)
+    {
+        cout << "particle number not match: "<< Np_up_check << " " << Np_up << " | " << Np_dn_check << " " << Np_dn << endl;
+        throw;
+    }
 
     // Initialize MPS as a product state
     auto psi = MPS (init);

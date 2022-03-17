@@ -52,7 +52,21 @@ int main(int argc, char* argv[])
 
     auto phi = read_determinants (det_file, lx*ly);
 
-    auto psi = GaussianMPS (phi, phi, block_size, occ_crit, {"Cutoff",cutoff,"MaxDim",maxdim});
+    MPS psi;
+    while (true)
+    {
+        try
+        {
+            cout << "block size = " << block_size << endl;
+            psi = GaussianMPS (phi, phi, block_size, occ_crit, {"Cutoff",cutoff,"MaxDim",maxdim});
+            break;
+        }
+        catch (const std::underflow_error& e)
+        {
+            block_size++;
+        }
+    }
+
     cout << "max bond dim = " << maxLinkDim(psi) << endl;
     writeToFile (outfile, psi);
     return 0;
