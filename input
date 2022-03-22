@@ -6,6 +6,7 @@ basic
     block_size = 2
     occ_crit = 0.01
     Cutoff = 1e-4
-    MaxDim = 100
+    MaxDim = 10
     MPSFileName = a.mps
+    grand_canonical = yes
 }

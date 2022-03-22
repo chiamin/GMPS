@@ -49,6 +49,8 @@ int main(int argc, char* argv[])
     auto cutoff     = input.getReal("Cutoff");
     auto maxdim     = input.getInt("MaxDim");
     auto outfile    = input.getString("MPSFileName");
+    auto grandcanon = input.getYesNo("grand_canonical",false);
+    auto conserveSz = input.getYesNo("conserve_Sz",true);
 
     auto phi = read_determinants (det_file, lx*ly);
 
@@ -58,7 +60,7 @@ int main(int argc, char* argv[])
         try
         {
             cout << "block size = " << block_size << endl;
-            psi = GaussianMPS (phi, phi, block_size, occ_crit, {"Cutoff",cutoff,"MaxDim",maxdim});
+            psi = GaussianMPS (phi, phi, block_size, occ_crit, {"ConserveNf",!grandcanon,"ConserveSz",conserveSz,"Cutoff",cutoff,"MaxDim",maxdim});
             break;
         }
         catch (const std::underflow_error& e)

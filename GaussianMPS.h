@@ -9,15 +9,6 @@ using namespace std;
 using VecT = CVector;
 using MatT = CMatrix;
 
-CVector inline
-operator*(CMatrixRefc const& A,
-          CVectorRefc const& b)
-{
-    CVector res(nrows(A));
-    mult(A,b,makeRef(res));
-    return res;
-}
-
 template <typename MatT>
 void check_unitary (const MatT& M)
 {
@@ -142,16 +133,35 @@ ITensor Hub_combiner (const Index& iihub, const Index& iiup, const Index& iidn)
     return del;
 }
 
-Index Spin_polar_index (const string& spin_str)
+Index Spin_polar_index (const string& spin_str, Args const& args=Args::global())
 // <spin_str> can be "up" or "dn"
 {
-    if (spin_str == "up") {
-        return Index (QN({"Sz",0},{"Nf",0,-1}),1,
-                      QN({"Sz",1},{"Nf",1,-1}),1);
+    auto conserveNf = args.getBool("ConserveNf",true);
+    if (spin_str == "up")
+    {
+        if(conserveNf)
+        {
+            return Index (QN({"Sz",0},{"Nf",0,-1}),1,
+                          QN({"Sz",1},{"Nf",1,-1}),1);
+        }
+        else
+        {
+            return Index (QN({"Sz",0},{"Pf",0,-2}),1,
+                          QN({"Sz",1},{"Pf",1,-1}),1);
+        }
     }
-    else if (spin_str == "dn") {
-        return Index (QN({"Sz",0},{"Nf",0,-1}),1,
-                      QN({"Sz",-1},{"Nf",1,-1}),1);
+    else if (spin_str == "dn")
+    {
+        if(conserveNf)
+        {
+            return Index (QN({"Sz",0},{"Nf",0,-1}),1,
+                          QN({"Sz",-1},{"Nf",1,-1}),1);
+        }
+        else
+        {
+            return Index (QN({"Sz",0},{"Pf",0,-2}),1,
+                          QN({"Sz",-1},{"Pf",1,-2}),1);
+        }
     }
     cout << "Error: spin_polar_index: invalid spin_str" << endl;
     throw;
@@ -180,13 +190,13 @@ ITensor Swap (Index ii1, Index ii2)
 }
 
 template <typename MatT>
-ITensor Rot_hub (const Index& s1, const Index& s2, const MatT& rot_up_mat, const MatT& rot_dn_mat)
+ITensor Rot_hub (const Index& s1, const Index& s2, const MatT& rot_up_mat, const MatT& rot_dn_mat, Args const& args=Args::global())
 // Single-body rotational gate for Hubbard indices.
 {
-    Index iiup1 = Spin_polar_index ("up"),
-          iiup2 = Spin_polar_index ("up"),
-          iidn1 = Spin_polar_index ("dn"),
-          iidn2 = Spin_polar_index ("dn");
+    Index iiup1 = Spin_polar_index ("up",args),
+          iiup2 = Spin_polar_index ("up",args),
+          iidn1 = Spin_polar_index ("dn",args),
+          iidn2 = Spin_polar_index ("dn",args);
 
     ITensor rot_up = to_many_body_rot (iiup1, iiup2, rot_up_mat),
             rot_dn = to_many_body_rot (iidn1, iidn2, rot_dn_mat),
@@ -223,16 +233,17 @@ void Apply_gates (MPS& psi, const vector<int>& pos, const vector<MatT>& rots_up,
     }
 
     auto sites = Electron(siteInds(psi));
-    //for(size_t i = 0; i < pos.size(); i++)
     for(int i = pos.size()-1; i >= 0; i--)
     {
         int p = pos.at(i);
         MatT rot_up = conj(transpose(rots_up.at(i)));
         MatT rot_dn = conj(transpose(rots_dn.at(i)));
 
-        ITensor gate = Rot_hub (sites(p), sites(p+1), rot_up, rot_dn);
+        ITensor gate = Rot_hub (sites(p), sites(p+1), rot_up, rot_dn, args);
         psi.position (p, args);
         applyGate (gate, psi, args);
+
+cout << i << " " << maxLinkDim(psi) << endl;
     }
 }
 
@@ -347,7 +358,7 @@ template <typename MatT>
 MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real crit, Args const& args=Args::global())
 {
     int N = nrows (phi_up);
-    Electron sites (N);
+    Electron sites (N, args);
 
     // Get  one-body density matrix
     MatT lambda_up = phi_up * conj(transpose(phi_up));
@@ -440,6 +451,7 @@ MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real cr
     // Apply the gates to rotate the MPS to new basis
     cout << "number of gates = " << pos_all.size() << endl;
     Apply_gates (psi, pos_all, rot_up_all, rot_dn_all, args);
+    cout << "max dim = " << maxLinkDim(psi) << endl;
 
     return psi;
 }
