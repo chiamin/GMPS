@@ -41,7 +41,8 @@ int main(int argc, char* argv[])
     if(argc < 2) { printfln("Usage: %s inputfile_dmrg_table",argv[0]); return 0; }
     InputGroup input (infile,"basic");
 
-    auto det_file   = input.getString("det_file");
+    auto det_up_file   = input.getString("det_up_file");
+    auto det_dn_file   = input.getString("det_dn_file");
     auto block_size = input.getInt("block_size");
     auto occ_crit   = input.getReal("occ_crit");
     auto lx         = input.getInt("Lx");
@@ -52,7 +53,8 @@ int main(int argc, char* argv[])
     auto grandcanon = input.getYesNo("grand_canonical",false);
     auto conserveSz = input.getYesNo("conserve_Sz",true);
 
-    auto phi = read_determinants (det_file, lx*ly);
+    auto phi_up = read_determinants (det_up_file, lx*ly);
+    auto phi_dn = read_determinants (det_dn_file, lx*ly);
 
     MPS psi;
     while (true)
@@ -60,7 +62,7 @@ int main(int argc, char* argv[])
         try
         {
             cout << "block size = " << block_size << endl;
-            psi = GaussianMPS (phi, phi, block_size, occ_crit, {"ConserveNf",!grandcanon,"ConserveSz",conserveSz,"Cutoff",cutoff,"MaxDim",maxdim});
+            psi = GaussianMPS (phi_up, phi_dn, block_size, occ_crit, {"ConserveNf",!grandcanon,"ConserveSz",conserveSz,"Cutoff",cutoff,"MaxDim",maxdim});
             break;
         }
         catch (const std::underflow_error& e)
