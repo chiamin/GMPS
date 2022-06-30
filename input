@@ -1,9 +1,9 @@
 basic
 {
-    Lx = 20
-    Ly = 4
-    det_up_file = qmc/phiT1.dat
-    det_dn_file = qmc/phiT1.dat
+    Lx = 16
+    Ly = 2
+    det_up_file = qmc2/616_tp0.2_pbc_up.dat
+    det_dn_file = qmc2/616_tp0.2_pbc_dn.dat
     block_size = 2
     occ_crit = 0.01
     Cutoff = 1e-4

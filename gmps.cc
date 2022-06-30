@@ -12,6 +12,11 @@ CMatrix read_determinants (const string& file, int N)
     int Npar = Nlines / N;
 
     cout << "particle number = " << Npar << endl;
+    if (Npar > N)
+    {
+        cout << "Error: Lx and/or Ly not correct. Particle number is larger than the number of sites" << endl;
+        throw;
+    }
 
     CMatrix phi (N, Npar);
     int it = 0;
