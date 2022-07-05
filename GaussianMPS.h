@@ -218,7 +218,6 @@ ITensor Rot_hub (const Index& s1, const Index& s2, const MatT& rot_up_mat, const
     re *= comb2;
     re *= dag(prime(comb1));
     re *= dag(prime(comb2));
-
     return re;
 }
 
@@ -242,7 +241,7 @@ void Apply_gates (MPS& psi, const vector<int>& pos, const vector<MatT>& rots_up,
         ITensor gate = Rot_hub (sites(p), sites(p+1), rot_up, rot_dn, args);
         psi.position (p, args);
         applyGate (gate, psi, args);
-
+        psi.normalize();
 cout << i << " " << maxLinkDim(psi) << endl;
     }
 }
@@ -439,6 +438,7 @@ MPS GaussianMPS (const MatT& phi_up, const MatT& phi_dn, int block_size, Real cr
     auto st = get_state_str (n_up, n_dn);
     init.set (N, st);
     update_Np (st, Np_up_check, Np_dn_check);
+    cout << "Ncheck " << Np_up_check << " " << Np_dn_check << endl;
     if (Np_up_check != Np_up or Np_dn_check != Np_dn)
     {
         cout << "particle number not match: "<< Np_up_check << " " << Np_up << " | " << Np_dn_check << " " << Np_dn << endl;

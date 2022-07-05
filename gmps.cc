@@ -38,6 +38,16 @@ CMatrix read_determinants (const string& file, int N)
     return phi;
 }
 
+MPO Make_NMPO (const SiteSet& sites)
+{
+    AutoMPO ampo (sites);
+    for(int i = 1; i <= length(sites); i++)
+    {
+        ampo += 1.0,"Ntot",i;
+    }
+    return toMPO (ampo);
+}
+
 int main(int argc, char* argv[])
 {
     string infile = argv[1];
@@ -75,6 +85,10 @@ int main(int argc, char* argv[])
             block_size++;
         }
     }
+
+    auto sites = Electron (siteInds(psi));
+    auto Nop = Make_NMPO (sites);
+    cout << "totN = " << inner(psi,Nop,psi) << endl;
 
     cout << "max bond dim = " << maxLinkDim(psi) << endl;
     writeToFile (outfile, psi);

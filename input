@@ -1,13 +1,13 @@
 basic
 {
     Lx = 16
-    Ly = 2
+    Ly = 6
     det_up_file = qmc2/616_tp0.2_pbc_up.dat
     det_dn_file = qmc2/616_tp0.2_pbc_dn.dat
     block_size = 2
     occ_crit = 0.01
     Cutoff = 1e-4
-    MaxDim = 10
+    MaxDim = 200
     MPSFileName = a.mps
-    grand_canonical = yes
+    grand_canonical = no
 }
