@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
 
     auto sites = Electron (siteInds(psi));
     auto Nop = Make_NMPO (sites);
-    cout << "totN = " << inner(psi,Nop,psi) << endl;
+    cout << "totN = " << innerC(psi,Nop,psi) << endl;
 
     cout << "max bond dim = " << maxLinkDim(psi) << endl;
     writeToFile (outfile, psi);
